@@ -29,12 +29,96 @@ a 3-player Minimum Effort Game
 """
 import numpy as np
 from .normal_form_game import Player, NormalFormGame
+from .polymatrix_game import PolymatrixGame
 
 
 def str2num(s):
     if '.' in s:
         return float(s)
     return int(s)
+
+
+class OneBigMatrixConverters:
+    """
+    Contains class methods for converting polymatrix games
+    to one big matrix consisting of a stacking of the
+    head-to-head payoff matrices turned into positive
+    costs or payoffs.
+
+    """
+
+    @classmethod
+    def to_one_big_matrix(
+        cls,
+        polymg: PolymatrixGame,
+        costs=True,
+        low_avoider=2.0
+    ):
+        """
+        Puts all of the matrices of the Polymatrix Game into
+        One Big Matrix where the submatrices on the diagonal
+        are zero and the submatrices at (i, j) are the
+        component payoffs to player i in the head to head game
+        between players i and j.
+
+        Parameters
+        ----------
+        polymg : PolymatrixGame
+            The PolymatrixGame to convert.
+        costs : bool, optional
+            Should the payoffs be turned into costs.
+            Defaults to True.
+        low_avoider : float, optional 
+            A number to keep the entries positive.
+            Defaults to 2.0.
+
+        Returns
+        ----------
+        ndarray(float, ndim=2)]
+            Matrix combining all of the head to head matrices of
+            the polymatrix game.
+
+        Examples
+        --------
+
+        Create one big matrix from a polymatrix game
+
+        >>> import quantecon.game_theory as gt
+        >>> matrices = {                                     
+        ...     (0, 1): [[1]],
+        ...     (1, 0): [[2]],   
+        ...     (0, 2): [[3, 4]],
+        ...     (2, 0): [[5], [6]],
+        ...     (1, 2): [[7, 8]],
+        ...     (2, 1): [[9], [10]]
+        ... }
+        >>> polymg = gt.PolymatrixGame(matrices)
+        >>> gt.game_converters.OneBigMatrixConverters.to_one_big_matrix(polymg)
+        array([[ 0., 11.,  9.,  8.],
+               [10.,  0.,  5.,  4.],
+               [ 7.,  3.,  0.,  0.],
+               [ 6.,  2.,  0.,  0.]])
+
+        """
+        positive_maker = polymg.range_of_payoffs()[1] + low_avoider
+        sign = -1 if costs else 1
+        if costs:
+            sign = -1
+            positive_maker = low_avoider + polymg.range_of_payoffs()[1]
+        else:
+            sign = 1
+            positive_maker = low_avoider - polymg.range_of_payoffs()[0]
+        M = np.vstack([
+            np.hstack([
+                np.zeros(
+                    (polymg.nums_actions[p1], polymg.nums_actions[p1])
+                ) if p2 == p1
+                else (positive_maker + sign * polymg.polymatrix[(p1, p2)])
+                for p2 in range(polymg.N)
+            ])
+            for p1 in range(polymg.N)
+        ])
+        return M
 
 
 class GAMReader:
